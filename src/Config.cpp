@@ -1047,7 +1047,7 @@ ConfigDialog::ConfigDialog(QWidget *parent,int index):
 		info->setText(Config::tr("waiting"));
 		l->addWidget(info,0,3);
 		auto loadValid=[=](){
-			QString url("https://secure.%1/captcha?r=%2");
+            QString url("https://passport.%1/captcha?r=%2");
 			url=url.arg(Utils::customUrl(Utils::Bilibili));
 			url=url.arg(qrand()/(double)RAND_MAX);
 			fillPicture(info,url,Config::tr("error"),QSize(200,25));
@@ -1070,13 +1070,13 @@ ConfigDialog::ConfigDialog(QWidget *parent,int index):
 		auto sendLogin=[this,setLogged](){
 			click->setEnabled(false);
 			QUrlQuery query;
-			query.addQueryItem("act","login");
+            //query.addQueryItem("act","login");
 			query.addQueryItem("userid",sheet[0]->text());
 			query.addQueryItem("pwd",sheet[1]->text());
-			query.addQueryItem("vdcode",sheet[2]->text());
+            query.addQueryItem("captcha",sheet[2]->text());
 			query.addQueryItem("keeptime","2592000");
 			QByteArray data=query.query().toUtf8();
-			QString url("https://secure.%1/login");
+            QString url("https://passport.%1/ajax/miniLogin/login");
 			url=url.arg(Utils::customUrl(Utils::Bilibili));
 			QNetworkRequest request(url);
 			request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
@@ -1086,12 +1086,13 @@ ConfigDialog::ConfigDialog(QWidget *parent,int index):
 				bool flag=false;
 				if(reply->error()==QNetworkReply::NoError){
 					QString page(reply->readAll());
-					if(page.indexOf("setTimeout('JumpUrl()',2000)")!=-1){
+                    if(page.indexOf("\"status\":true")!=-1){
 						flag=true;
 					}
 					else{
-						int sta=page.indexOf("document.write(\"")+16;
-						QMessageBox::warning(this,Config::tr("Warning"),page.mid(sta,page.indexOf("\"",sta)-sta));
+                        //int sta=page.indexOf("document.write(\"")+16;
+                        //QMessageBox::warning(this,Config::tr("Warning"),page.mid(sta,page.indexOf("\"",sta)-sta));
+                        QMessageBox::warning(this,Config::tr("Warning"),page);
 					}
 				}
 				click->setEnabled(true);
@@ -1101,7 +1102,7 @@ ConfigDialog::ConfigDialog(QWidget *parent,int index):
 		};
 		auto setLogout=[=](){
 			click->setEnabled(false);
-			QString url="https://secure.%1/login?act=exit";
+            QString url="https://passport.%1/login?act=exit";
 			url=url.arg(Utils::customUrl(Utils::Bilibili));
 			QNetworkReply *reply=manager->get(QNetworkRequest(url));
 			connect(reply,&QNetworkReply::finished,[=](){

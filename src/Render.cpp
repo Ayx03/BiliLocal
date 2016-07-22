@@ -130,6 +130,7 @@ extern "C"
 #include <libavutil/mem.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#define PIX_FMT_HWACCEL 8
 }
 
 class RasterRenderPrivate:public RenderPrivate

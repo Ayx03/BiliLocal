@@ -279,7 +279,7 @@ Load::Load(QObject *parent):
 			model->clear();
 			QString api,id,video(reply->readAll());
 			int sta;
-			if((sta=video.indexOf("<div class=\"alist\">"))!=-1&&sharp==-1){
+            if((sta=video.indexOf("<div id=\"plist\">"))!=-1&&sharp==-1){
 				int len=video.indexOf("</select>",sta)-sta+1;
 				len=len<0?0:len;
 				QString select=video.mid(sta,len);
