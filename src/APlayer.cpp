@@ -26,6 +26,7 @@
 
 #include "APlayer.h"
 #include "Config.h"
+#include "List.h"
 #include "Local.h"
 #include "Render.h"
 #include "Utils.h"
@@ -741,13 +742,17 @@ QList<QAction *> QPlayer::getTracks(int)
 
 void QPlayer::play()
 {
-	QMetaObject::invokeMethod(mp,getState()==Play?"pause":"play",Qt::BlockingQueuedConnection);
+    if(getState()==Play){
+        List::instance()->saveList();
+        Config::save();
+    }
+    QMetaObject::invokeMethod(mp,getState()==Play?"pause":"play",Qt::BlockingQueuedConnection);
 }
 
 void QPlayer::stop(bool manually)
 {
 	manuallyStopped=manually;
-	QMetaObject::invokeMethod(mp,"stop",Qt::BlockingQueuedConnection);
+    QMetaObject::invokeMethod(mp,"stop",Qt::BlockingQueuedConnection);
 }
 
 void QPlayer::setTime(qint64 _time)
@@ -808,7 +813,7 @@ class NPlayer:public APlayer
 {
 public:
 	explicit NPlayer(QObject *parent=0);
-	QList<QAction *> getTracks(int type);
+    QList<QAction *> getTracks(int type);
 
 private:
 	qint64 start; 

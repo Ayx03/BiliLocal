@@ -279,6 +279,42 @@ List::~List()
 	Config::setValue("/Playing/List",list);
 }
 
+void List::saveList()
+{
+    QJsonArray list;
+    updateCurrent();
+    for(int i=0;i<rowCount();++i){
+        QStandardItem *item=this->item(i);
+        QJsonObject data;
+        data["File"]=item->data(FileRole).toString();
+        data["Time"]=item->data(TimeRole).toDouble();
+        data["Date"]=item->data(DateRole).toString();
+        switch(item->data(CodeRole).toInt()){
+        case Records:
+        {
+            QJsonArray danm;
+            for(int i=0;i<item->rowCount();++i){
+                QStandardItem *c=item->child(i);
+                QJsonObject d;
+                d["Code"]=c->data(CodeRole).toString();
+                d["Time"]=c->data(TimeRole).toDouble();
+                danm.append(d);
+            }
+            data["Danm"]=danm;
+            break;
+        }
+        case Inherit:
+            data["Danm"]="Inherit";
+            break;
+        case Surmise:
+            data["Danm"]="Surmise";
+            break;
+        }
+        list.append(data);
+    }
+    Config::setValue("/Playing/List",list);
+}
+
 QStringList List::mimeTypes() const
 {
 	return {"application/x-bililocallistdata"};

@@ -50,6 +50,7 @@ public:
 	};
 
 	~List();
+    void saveList();
 	static List *instance();
 	QStringList mimeTypes() const;
 	QMimeData  *mimeData(const QModelIndexList &) const;
@@ -69,7 +70,7 @@ public slots:
 	QStandardItem *itemFromFile(QString file,bool create=false);
 	bool finished();
 	void appendMedia(QString file);
-	void updateCurrent();
+    void updateCurrent();
 	void split(const QModelIndex &index);
 	void split(const QModelIndexList &indexes);
 	void waste(const QModelIndex &index);
