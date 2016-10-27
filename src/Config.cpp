@@ -34,6 +34,12 @@
 #include "Utils.h"
 #include <algorithm>
 
+extern "C"
+{
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+}
+
 Config *Config::ins=nullptr;
 
 Config *Config::instance()
@@ -1066,39 +1072,91 @@ ConfigDialog::ConfigDialog(QWidget *parent,int index):
 			for(QLineEdit *iter:sheet){
 				iter->setEnabled(!logged);
 			}
-		};
-		auto sendLogin=[this,setLogged](){
-			click->setEnabled(false);
-			QUrlQuery query;
-            //query.addQueryItem("act","login");
-			query.addQueryItem("userid",sheet[0]->text());
-			query.addQueryItem("pwd",sheet[1]->text());
-            query.addQueryItem("captcha",sheet[2]->text());
-			query.addQueryItem("keeptime","2592000");
-			QByteArray data=query.query().toUtf8();
-            QString url("https://passport.%1/ajax/miniLogin/login");
-			url=url.arg(Utils::customUrl(Utils::Bilibili));
-			QNetworkRequest request(url);
-			request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
-			request.setHeader(QNetworkRequest::ContentLengthHeader,data.length());
-			QNetworkReply *reply=manager->post(request,data);
-			connect(reply,&QNetworkReply::finished,[=](){
-				bool flag=false;
-				if(reply->error()==QNetworkReply::NoError){
-					QString page(reply->readAll());
-                    if(page.indexOf("\"status\":true")!=-1){
-						flag=true;
-					}
-					else{
-                        //int sta=page.indexOf("document.write(\"")+16;
-                        //QMessageBox::warning(this,Config::tr("Warning"),page.mid(sta,page.indexOf("\"",sta)-sta));
-                        QMessageBox::warning(this,Config::tr("Warning"),page);
-					}
-				}
-				click->setEnabled(true);
-				setLogged(flag);
-				reply->deleteLater();
-			});
+        };
+        auto sendLogin=[this,setLogged](){
+            click->setEnabled(false);
+            QString url("https://passport.%1/login?act=getkey");
+            url=url.arg(Utils::customUrl(Utils::Bilibili));
+            QNetworkRequest request(url);
+            QNetworkReply *reply=manager->get(request);
+            connect(reply,&QNetworkReply::finished,[=](){
+                QString pwd=sheet[1]->text();
+                try{
+                    QJsonObject key = QJsonDocument::fromJson(reply->readAll()).object();
+                    qDebug() << key;
+                    static QLibrary lib;
+                    static BIO *(*BIO_new_mem_buf)(void *, int);
+                    static RSA *(*PEM_read_bio_RSA_PUBKEY)(BIO *, RSA **, pem_password_cb *, void *);
+                    static int(*RSA_public_encrypt)(int, const unsigned char *, unsigned char *, RSA *, int);
+                    if (lib.fileName().isEmpty()){
+                        for (const QString &name : { "libeay32", "libcrypto" }){
+                            lib.setFileName(name);
+                            if (lib.load()){
+                                BIO_new_mem_buf = (decltype(BIO_new_mem_buf))lib.resolve("BIO_new_mem_buf");
+                                PEM_read_bio_RSA_PUBKEY = (decltype(PEM_read_bio_RSA_PUBKEY))lib.resolve("PEM_read_bio_RSA_PUBKEY");
+                                RSA_public_encrypt = (decltype(RSA_public_encrypt))lib.resolve("RSA_public_encrypt");
+                                break;
+                            }
+                        }
+                    }
+                    if (!lib.isLoaded()){
+                        throw "failed to load openssl library";
+                    }
+                    QByteArray pub = key["key"].toString().toUtf8();
+                    BIO *bio = BIO_new_mem_buf(pub.data(), pub.length());
+                    if (!bio){
+                        throw "failed to generate BIO";
+                    }
+                    RSA *rsa = PEM_read_bio_RSA_PUBKEY(bio, NULL, NULL, NULL);
+                    if (!rsa){
+                        throw "failed to generate RSA_PUBKEY";
+                    }
+                    pwd.prepend(key["hash"].toString());
+                    QByteArray dat = pwd.toUtf8();
+                    QByteArray buf;
+                    buf.resize(1024);
+                    int len = RSA_public_encrypt(dat.length(), (const unsigned char *)dat.data(), (unsigned char*)buf.data(), rsa, RSA_PKCS1_PADDING);
+                    if (len == -1){
+                        throw "failed to encrypt using RSA";
+                    }
+                    buf.resize(len);
+                    pwd = buf.toBase64();
+                }
+                catch (...)
+                {
+                    QMessageBox::warning(this,Config::tr("warning"),"An error occurred in RSA encryption");
+                    return;
+                }
+
+                QUrlQuery query;
+                query.addQueryItem("userid",sheet[0]->text());
+                query.addQueryItem("pwd",pwd.replace("+","%2B"));
+                query.addQueryItem("captcha",sheet[2]->text());
+                QByteArray data=query.query().toUtf8();
+                QString url("https://passport.%1/ajax/miniLogin/login");
+                url=url.arg(Utils::customUrl(Utils::Bilibili));
+                QNetworkRequest request(url);
+                request.setHeader(QNetworkRequest::ContentTypeHeader,"application/x-www-form-urlencoded");
+                request.setHeader(QNetworkRequest::ContentLengthHeader,data.length());
+                QNetworkReply *reply=manager->post(request,data);
+                connect(reply,&QNetworkReply::finished,[=](){
+                    bool flag=false;
+                    if(reply->error()==QNetworkReply::NoError){
+                        QString page(reply->readAll());
+                        if(page.indexOf("\"status\":true")!=-1){
+                            flag=true;
+                        }
+                        else{
+                            //int sta=page.indexOf("document.write(\"")+16;
+                            //QMessageBox::warning(this,Config::tr("Warning"),page.mid(sta,page.indexOf("\"",sta)-sta));
+                            QMessageBox::warning(this,Config::tr("Warning"),page);
+                        }
+                    }
+                    click->setEnabled(true);
+                    setLogged(flag);
+                    reply->deleteLater();
+                });
+            });
 		};
 		auto setLogout=[=](){
 			click->setEnabled(false);
